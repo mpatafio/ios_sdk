@@ -111,18 +111,16 @@ static NSDateFormatter *dateFormat;
     return [dateFormat stringFromDate:value];
 }
 
-+ (void) buildJsonDict:(NSData *)jsonData
-                   responseData:(ADJResponseData *)responseData
++ (void) saveJsonResponse:(NSData *)jsonData
+             responseData:(ADJResponseData *)responseData
 {
-    if (jsonData == nil) {
-        return;
-    }
     NSError *error = nil;
-    NSDictionary *jsonDict = nil;
-    @try {
-        jsonDict = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:&error];
-    } @catch (NSException *ex) {
-        NSString * message = [NSString stringWithFormat:@"Failed to parse json response. (%@)", ex.description];
+    NSException *exception = nil;
+
+    NSDictionary *jsonDict = [ADJUtil buildJsonDict:jsonData exceptionPtr:&exception errorPtr:&error];
+
+    if (exception != nil) {
+        NSString * message = [NSString stringWithFormat:@"Failed to parse json response. (%@)", exception.description];
         [ADJAdjustFactory.logger error:message];
         responseData.message = message;
         return;
@@ -136,6 +134,24 @@ static NSDateFormatter *dateFormat;
     }
 
     responseData.jsonResponse = jsonDict;
+}
+
++ (NSDictionary *) buildJsonDict:(NSData *)jsonData
+                    exceptionPtr:(NSException **)exceptionPtr
+                        errorPtr:(NSError **)error
+{
+    if (jsonData == nil) {
+        return nil;
+    }
+    NSDictionary *jsonDict = nil;
+    @try {
+        jsonDict = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:error];
+    } @catch (NSException *ex) {
+        *exceptionPtr = ex;
+        return nil;
+    }
+
+    return jsonDict;
 }
 
 + (NSString *)getFullFilename:(NSString *) baseFilename {
@@ -334,7 +350,7 @@ responseDataHandler:(void (^) (ADJResponseData * responseData))responseDataHandl
 
     [ADJAdjustFactory.logger verbose:@"Response: %@", responseString];
 
-    [ADJUtil buildJsonDict:data responseData:responseData];
+    [ADJUtil saveJsonResponse:data responseData:responseData];
 
     if ([ADJUtil isNull:responseData.jsonResponse]) {
         return responseData;
